@@ -1,0 +1,11 @@
+{
+  "plugins": [
+    "transform-react-jsx",
+    "@babel/plugin-proposal-class-properties",
+  ],
+  "presets": [
+      "@babel/flow",
+      "@babel/preset-env",
+      "@babel/preset-react"
+  ]
+}
