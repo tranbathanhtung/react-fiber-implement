@@ -1,11 +1,11 @@
 import {
   Root
 } from '../shared/tag';
-import { Incomplete, NoEffect, PerformedWork, Placement, Update } from '../shared/effect-tag';
+import { Incomplete, NoEffect, PerformedWork, Placement, Update, Passive, PlacementAndUpdate } from '../shared/effect-tag';
 import { createWIP } from './f-node';
 import { beginWork } from './begin-work';
 import { completeWork } from './complete-work';
-import { commitPlacement, commitWork } from './commit-work';
+import { commitPlacement, commitWork, commitPassiveWithEffects } from './commit-work';
 import { resetWiths } from './f-with';
 const expireTime = 1;
 
@@ -206,23 +206,60 @@ export function commitRoot(root, finishedWork) {
     }
   }
 
+  // Invoke instances of getSnapshotBeforeUpdate before mutation.
+
+
+
   // The work-in-progress tree is now the current tree. This must come after
   // the first pass of the commit phase, so that the previous tree is still
   // current during componentWillUnmount, but before the second pass, so that
   // the finished work is current during componentDidMount/Update.
   root.current = finishedWork;
+
+  // In the second pass we'll perform all life-cycles and ref callbacks.
+  // Life-cycles happen as a separate pass so that all placements, updates,
+  // and deletions in the entire tree have already been invoked.
+  // This pass also triggers any renderer-specific initial effects.
+
+  //commitAllLifeCircleHere
+
+  // This commit included a passive effect. These do not need to fire until
+  // after the next paint. Schedule an callback to fire them in an async
+  // event. To ensure serial execution, the callback will be flushed early if
+  // we enter rootWithPendingPassiveEffects commit phase before then.
+  if(
+    firstEffect !== null
+  ) {
+    let callback = commitPassiveEffects.bind(null, root, firstEffect);
+  }
+}
+
+function commitPassiveEffects(root, firstEffect) {
+  let effect = firstEffect;
+  do {
+    if (effect.effectTag & Passive) {
+      try {
+        commitPassiveWithEffects(effect);
+      } catch(err) {
+        console.log(err)
+      }
+    }
+    effect = effect.nextEffect;
+
+  } while(effect !== null)
 }
 
 function commitAllHostEffects() {
 
   while (nextEffect !== null) {
     const effectTag = nextEffect.effectTag;
-
+    console.log('effectTag', nextEffect)
     // The following switch statement is only concerned about placement,
     // updates, and deletions. To avoid needing to add a case for every
     // possible bitmap value, we remove the secondary effects from the
     // effect tag and switch on that value.
     let primaryEffectTag = effectTag & (Placement | Update);
+    console.log('primaryEffectTag', primaryEffectTag)
     switch (primaryEffectTag) {
       case Placement: {
         commitPlacement(nextEffect);
@@ -234,6 +271,19 @@ function commitAllHostEffects() {
         nextEffect.effectTag &= ~Placement;
         break;
       }
+      case PlacementAndUpdate: {
+        console.log('Place and Update');
+        // Placement
+        commitPlacement(nextEffect);
+        // Clear the "placement" from effect tag so that we know that this is inserted, before
+        // any life-cycles like componentDidMount gets called.
+        nextEffect.effectTag &= ~Placement;
+
+        // Update
+        const current = nextEffect.alternate;
+        commitWork(current, nextEffect);
+        break;
+      };
       case Update: {
         const current = nextEffect.alternate;
         commitWork(current, nextEffect);

@@ -68,6 +68,8 @@ function ChildReconciler(shouldTrackSideEffects) {
   }
 
   function placeSingleChild(newFNode) {
+    console.log('placeChild',newFNode)
+
     // This is simpler for the single child case. We only need to do a
     // placement for inserting new children.
     if (shouldTrackSideEffects && newFNode.alternate === null) {
@@ -209,8 +211,8 @@ function ChildReconciler(shouldTrackSideEffects) {
 
   function reconcileChildrenArray(returnFNode, currentFirstChild, newChildren) {
 
-      let resultingFirstChild: Fiber | null = null;
-      let previousnewFNode: Fiber | null = null;
+      let resultingFirstChild = null;
+      let previousnewFNode = null;
 
       let oldFiber = currentFirstChild; // null
       let lastPlacedIndex = 0;

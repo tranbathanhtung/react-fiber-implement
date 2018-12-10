@@ -188,3 +188,14 @@ export function commitWork(
       console.error('Fuck up!!!')
   }
 }
+
+export function commitPassiveWithEffects(finishedWork) {
+  commitWithEffectList(0, 64, finishedWork);
+}
+
+function commitWithEffectList(unmountTag, mountTag, finishedWork) {
+  const updateQueue = finishedWork.updateQueue;
+  let lastEffect = updateQueue !== null ? updateQueue.lastEffect : null;
+  console.log('lastEffect',lastEffect)
+
+}
