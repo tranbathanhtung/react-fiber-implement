@@ -1,13 +1,20 @@
 // @flow
-import { isNil } from '../shared/validate';
-
+import { isNil, isFunction } from '../shared/validate';
 const hasOwnProperty = Object.prototype.hasOwnProperty;
+
+
+const hasSymbol = typeof Symbol === 'function' && Symbol.for;
+
+export const REACT_ELEMENT_TYPE = hasSymbol
+  ? Symbol.for('react.element')
+  : 0xeac7;
+export const REACT_FRAGMENT_TYPE = hasSymbol
+  ? Symbol.for('react.fragment')
+  : 0xeacb;
 
 const RESERVED_PROPS = {
   key: true,
   ref: true,
-  // __self: true,
-  // __source: true,
 };
 
 function hasValidKey(options) {
@@ -16,26 +23,17 @@ function hasValidKey(options) {
 
 function VNode(type, props, key) {
   const vnode = {
-    $$typeof: 'Taca',
+    $$typeof: REACT_ELEMENT_TYPE,
 
     type: type,
     props: props,
     key: key,
   }
 
-  if (Object.freeze) {
-    Object.freeze(vnode.props);
-    Object.freeze(vnode);
-  }
-
   return vnode;
 }
 
 export function h(type, options, children) {
-  // console.log('options', options);
-  // console.log('type', type)
-  // console.log('children', children)
-
   let propName;
   const props = {};
   let key = null;

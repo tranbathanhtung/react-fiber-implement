@@ -1,61 +1,14 @@
-const HTML_NAMESPACE = 'http://www.w3.org/1999/xhtml';
-const MATH_NAMESPACE = 'http://www.w3.org/1998/Math/MathML';
-const SVG_NAMESPACE = 'http://www.w3.org/2000/svg';
+import createElement from './utils/createElement';
+import { createTextNode, setTextContent, resetTextContent } from './utils/textElement';
+import { appendChildToContainer, appendInitialChild, appendChild } from './utils/append';
+import { removeChildFromContainer, removeChild } from './utils/remove';
+import { insertInContainerBefore, insertBefore } from './utils/insert';
+import { isDocumentNode } from './utils/validate';
 
-export const Namespaces = {
-  html: HTML_NAMESPACE,
-  mathml: MATH_NAMESPACE,
-  svg: SVG_NAMESPACE,
-};
-export const COMMENT_NODE = 8;
-const DOCUMENT_NODE = 9;
-const TEXT_NODE = 3;
 const CHILDREN = 'children';
 
 // Assumes there is no parent namespace.
-export function getIntrinsicNamespace(type: string): string {
-  switch (type) {
-    case 'svg':
-      return SVG_NAMESPACE;
-    case 'math':
-      return MATH_NAMESPACE;
-    default:
-      return HTML_NAMESPACE;
-  }
-}
 
-function getOwnerDocumentFromRootContainer(
-  rootContainerElement
-) {
-  return rootContainerElement.nodeType === DOCUMENT_NODE
-    ? rootContainerElement
-    : rootContainerElement.ownerDocument;
-}
-
-function createElement(
-  type,
-  props,
-  rootContainerElement,
-  parentNamespace,
-) {
-  const ownerDocument = getOwnerDocumentFromRootContainer(
-    rootContainerElement,
-  );
-  let domElement;
-  let namespaceURI = parentNamespace;
-  if (typeof props.is === 'string') {
-    domElement = ownerDocument.createElement(type, {is: props.is});
-  } else {
-    domElement = ownerDocument.createElement(type);
-    if (type === 'select' && props.multiple) {
-      const node = domElement;
-      node.multiple = true;
-    }
-  }
-
-  return domElement;
-
-}
 const randomKey = Math.floor((Math.random() * 100) + 1);
 
 const internalInstanceKey = '__reactInternalInstance$' + randomKey;
@@ -72,7 +25,7 @@ export function updateFiberProps(node, props) {
   node[internalEventHandlersKey] = props;
 }
 
-export function createInstance(
+export function createDomNodeInstance(
   type,
   props,
   rootContainerInstance,
@@ -91,36 +44,8 @@ export function createInstance(
   return domElement;
 }
 
-export function appendInitialChild(
-  parentInstance,
-  child,
-) {
-  parentInstance.appendChild(child);
-}
-
-export function resetTextContent(domElement: Instance): void {
-  setTextContent(domElement, '');
-}
-
-function setTextContent(node, text) {
-  if (text) {
-    let firstChild = node.firstChild;
-
-    if (
-      firstChild &&
-      firstChild === node.lastChild &&
-      firstChild.nodeType === TEXT_NODE
-    ) {
-      firstChild.nodeValue = text;
-      return;
-    }
-  }
-  node.textContent = text;
-}
-
 function ensureListeningTo(rootContainerElement, eventName, callback) {
-  const isDocumentOrFragment =
-    rootContainerElement.nodeType === DOCUMENT_NODE;
+  const isDocumentOrFragment = isDocumentNode(rootContainerElement);
   const dom = isDocumentOrFragment
       ? rootContainerElement.ownerDocument
       : rootContainerElement;
@@ -194,45 +119,6 @@ export function finalizeInitialChildren(
   return false
 }
 
-// Append child
-export function appendChildToContainer(
-  container,
-  child
-) {
-  let parentNode;
-  if (container.nodeType === COMMENT_NODE) {
-    parentNode = container.parentNode;
-    parentNode.insertBefore(child, container)
-  } else {
-    parentNode = container;
-    parentNode.appendChild(child);
-  }
-}
-
-export function appendChild(
-  parentInstance,
-  child,
-) {
-  parentInstance.appendChild(child);
-}
-
-export function insertBefore(
-  parentInstance,
-  child,
-  beforeChild,
-) {
-  parentInstance.insertBefore(child, beforeChild);
-}
-
-export function createTextNode(
-  text,
-  rootContainerElement
-) {
-  return getOwnerDocumentFromRootContainer(rootContainerElement).createTextNode(
-    text,
-  );
-}
-
 export function createTextInstance(
   text,
   rootContainerInstance,
@@ -241,18 +127,6 @@ export function createTextInstance(
   const textNode = createTextNode(text, rootContainerInstance);
   precacheFiberNode(internalInstanceHandle, textNode);
   return textNode;
-}
-
-export function insertInContainerBefore(
-  container,
-  child,
-  beforeChild,
-) {
-  if (container.nodeType === COMMENT_NODE) {
-    container.parentNode.insertBefore(child, beforeChild);
-  } else {
-    container.insertBefore(child, beforeChild);
-  }
 }
 
 function updateDOMProperties(
@@ -343,7 +217,7 @@ function diffProperties(
 
   // it's like remove event listener because add event listener not orverride old function
   if (typeof lastProps.onClick === 'function' && typeof nextProps.onClick === 'function') {
-    trapClickOnNonInteractiveElement(domElement, lastProps.onClick);
+    removeEvent(domElement, lastProps.onClick);
   }
 
   let propKey;
@@ -357,7 +231,6 @@ function diffProperties(
       continue;
     }
   }
-
   for (propKey in nextProps) {
     const nextProp = nextProps[propKey];
     const lastProp = lastProps != null ? lastProps[propKey] : undefined;
@@ -368,12 +241,12 @@ function diffProperties(
     ) {
       continue;
     }
+
     if (propKey === CHILDREN) {
       if (lastProp !== nextProp && (typeof nextProp === 'string' || typeof nextProp === 'number')) {
         (updatePayload = updatePayload || []).push(propKey, '' + nextProp);
       }
     } else if (propKey[0] === 'o' && propKey[1] === 'n') {
-      // console.log('add event', {domElement, propKey, nextProp})
       ensureListeningTo(domElement, propKey, nextProp)
       if (!updatePayload && lastProp !== nextProp) {
         // This is a special case. If any listener updates we need to ensure
@@ -394,6 +267,22 @@ function diffProperties(
 
 }
 
-function trapClickOnNonInteractiveElement(element, callback) {
+function removeEvent(element, callback) {
   element.removeEventListener('click', callback);
+}
+
+export {
+  createTextNode,
+  setTextContent,
+  resetTextContent,
+
+  appendChildToContainer,
+  appendInitialChild,
+  appendChild,
+
+  removeChildFromContainer,
+  removeChild,
+
+  insertInContainerBefore,
+  insertBefore,
 }

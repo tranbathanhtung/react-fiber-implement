@@ -1,23 +1,22 @@
+// @flow
+import type { VNodeElement, Container } from '../shared/types';
+import type { FNode, FRoot } from './f-node';
+
 import { createFRoot } from './f-node';
 import { scheduleWork } from './scheduler';
-// import { enqueueUpdate, createUpdate } from './queue';
 import { createRootRender } from './root-render';
 
-export function createContainer(container) {
+export function createContainer(container: Container): FRoot {
   return createFRoot(container);
 }
 
-export function updateContainer(el, FRoot) {
+export function updateContainer(el: VNodeElement, FRoot: FRoot): void {
   const current = FRoot.current;
   return scheduleRootUpdate(current, el);
 }
 
-// before scheduler a work we will set update to a queue
-function scheduleRootUpdate(current, el) {
-  // const update = createUpdate();
-  // update.payload = { element: el };
+function scheduleRootUpdate(current: FNode, el: VNodeElement): void {
   const rootRender = createRootRender(el);
-  // enqueueUpdate(current, update);
   current.rootRender = rootRender;
 
   scheduleWork(current);

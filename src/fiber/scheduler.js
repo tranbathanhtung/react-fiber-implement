@@ -1,18 +1,47 @@
+// @flow
+import type { FNode, FRoot } from './f-node';
+
 import {
-  Root
+  Root,
+  Text,
+  DNode,
+  FComponent,
 } from '../shared/tag';
-import { Incomplete, NoEffect, PerformedWork, Placement, Update, Passive, PlacementAndUpdate } from '../shared/effect-tag';
+import {
+  Incomplete,
+  NoEffect,
+  PerformedWork,
+  Placement,
+  Deletion,
+  Update,
+  Passive,
+  PlacementAndUpdate
+} from '../shared/effect-tag';
+import {
+  UnmountLayout,
+  MountLayout
+} from '../shared/with-effect';
 import { createWIP } from './f-node';
 import { beginWork } from './begin-work';
 import { completeWork } from './complete-work';
-import { commitPlacement, commitWork, commitPassiveWithEffects } from './commit-work';
+import {
+  commitPlacement,
+  commitDeletion,
+  commitWork,
+  commitPassiveWithEffects,
+  commitWithEffectList
+} from './commit-work';
 import { resetWiths } from './f-with';
+import { callLifeCycle } from './f-life-cycle';
+import { LinkedList } from '../structures/linked-list';
 const expireTime = 1;
 
 let nextUnitOfWork = null;
 let nextEffect = null;
 
-export function scheduleWork(fnode) {
+let rootWithPendingPassiveEffects = null;
+
+export function scheduleWork(fnode: FNode): void {
   const root = getRootFromFnode(fnode);
   if (root === null) {
     // clone here
@@ -22,28 +51,16 @@ export function scheduleWork(fnode) {
   requestIdleCallback(dl => performWork(dl, root))
 }
 
-function getRootFromFnode(fnode) {
-  // let alternate = fnode.alternate;
-  // Walk the parent path to the root and update the child expiration time.
-  let node = fnode.return;
-  let root = null;
-  if (root === null && fnode.tag === Root) {
-    root = fnode.instanceNode;
-  } else {
-    while (node !== null) {
-      // alternate = node.alternate;
-      if (node.return === null && node.tag === Root) {
-        root = node.instanceNode;
-        break;
-      }
-      node = node.return;
-    }
+function getRootFromFnode(fnode: FNode): FRoot {
+  let node = fnode;
+  if (fnode !== null && node.tag === Root && node.return === null) {
+    return fnode.instanceNode;
   }
-
-  return root;
+  node = node.return;
+  return getRootFromFnode(node);
 }
 
-function performWork(dl, root) {
+function performWork(dl: any, root: FRoot): void {
   workLoop(dl, root);
   if (nextUnitOfWork) {
     requestIdleCallback(dl => performWork(dl, root));
@@ -52,13 +69,12 @@ function performWork(dl, root) {
     let finishedWork = root.current.alternate;
     if (finishedWork) {
       // complete Root
-      console.log('completeRoot', {root, finishedWork})
       completeRoot(root, finishedWork)
     }
   }
 }
 
-function workLoop(dl, root) {
+function workLoop(dl: any, root: FRoot): void {
   if (!nextUnitOfWork) {
     nextUnitOfWork = createWIP(root.current, null);
   }
@@ -67,26 +83,22 @@ function workLoop(dl, root) {
   }
 }
 
-function performUnitOfWork(WIP) {
+function performUnitOfWork(WIP: FNode): FNode {
   const current = WIP.alternate;
   let next;
-
   next = beginWork(current, WIP);
-  // console.log('next begin', next)
   WIP.prevProps = WIP.props;
   if (next === null) {
     next = completeUnitOfWork(WIP);
-    // console.log('next complete', next)
-
   }
-
   return next;
 }
 
-function completeUnitOfWork(WIP) {
+function completeUnitOfWork(WIP: FNode): FNode | null {
   // Attempt to complete the current unit of work, then move to the
   // next sibling. If there are no more siblings, return to the
   // parent fiber.
+
   while (true) {
     // The current, flushed, state of this fiber is the alternate.
     // Ideally nothing should rely on this, but relying on it here
@@ -106,22 +118,7 @@ function completeUnitOfWork(WIP) {
       if (returnFNode !== null &&
         // Do not append effects to parents if a sibling failed to complete
         (returnFNode.effectTag & Incomplete) === NoEffect) {
-
-          // Append all the effects of the subtree and this fiber onto the effect
-          // list of the parent. The completion order of the children affects the
-          // side-effect order.
-          if (returnFNode.firstEffect === null) {
-            returnFNode.firstEffect = WIP.firstEffect;
-          }
-
-          if (WIP.lastEffect !== null) {
-            if (returnFNode.lastEffect !== null) {
-              returnFNode.lastEffect.nextEffect = WIP.firstEffect;
-            }
-            returnFNode.lastEffect = WIP.lastEffect;
-
-          }
-
+          returnFNode.linkedList.addEffectToParent(WIP);
           // If this fiber had side-effects, we append it AFTER the children's
           // side-effects. We can perform certain side-effects earlier if
           // needed, by doing multiple passes over the effect list. We don't want
@@ -132,14 +129,8 @@ function completeUnitOfWork(WIP) {
           // Skip both NoWork and PerformedWork tags when creating the effect list.
           // PerformedWork effect is read by React DevTools but shouldn't be committed.
           if (effectTag > PerformedWork) {
-            if (returnFNode.lastEffect !== null) {
-              returnFNode.lastEffect.nextEffect = WIP;
-            } else {
-              returnFNode.firstEffect = WIP;
-            }
-            returnFNode.lastEffect = WIP;
+            returnFNode.linkedList.add(WIP)
           }
-
       }
 
       if (siblingFNode !== null) {
@@ -172,37 +163,40 @@ function completeUnitOfWork(WIP) {
 }
 
 export function completeRoot(
-  root,
-  finishedWork,
-) {
+  root: FRoot,
+  finishedWork: FNode,
+): void {
   // Commit the root.
   root.finishedWork = null;
   commitRoot(root, finishedWork);
 }
 
-export function commitRoot(root, finishedWork) {
+export function commitRoot(root: FRoot, finishedWork: FNode): void {
   let firstEffect;
+  const linkedList = finishedWork.linkedList;
+
   if (finishedWork.effectTag > PerformedWork) {
     // A fiber's effect list consists only of its children, not itself. So if
     // the root has an effect, we need to add it to the end of the list. The
     // resulting list is the set that would belong to the root's parent, if
     // it had one; that is, all the effects in the tree including the root.
-    if (finishedWork.lastEffect !== null) {
-      finishedWork.lastEffect.nextEffect = finishedWork;
-      firstEffect = finishedWork.firstEffect;
+    if (linkedList.last !== null) {
+      linkedList.last.next = finishedWork;
+      firstEffect = linkedList.first;
     } else {
       firstEffect = finishedWork;
     }
   } else {
     // There is no effect on the root.
-    firstEffect = finishedWork.firstEffect;
+    firstEffect = linkedList.first;;
   }
 
   nextEffect = firstEffect;
+
   while (nextEffect !== null) {
     commitAllHostEffects()
     if (nextEffect !== null) {
-        nextEffect = nextEffect.nextEffect;
+        nextEffect = nextEffect.next;
     }
   }
 
@@ -220,8 +214,15 @@ export function commitRoot(root, finishedWork) {
   // Life-cycles happen as a separate pass so that all placements, updates,
   // and deletions in the entire tree have already been invoked.
   // This pass also triggers any renderer-specific initial effects.
+  nextEffect = firstEffect;
 
   //commitAllLifeCircleHere
+  while (nextEffect !== null) {
+    commitAllLifeCycles(root);
+    if (nextEffect !== null) {
+      nextEffect = nextEffect.next;
+    }
+  }
 
   // This commit included a passive effect. These do not need to fire until
   // after the next paint. Schedule an callback to fire them in an async
@@ -229,12 +230,15 @@ export function commitRoot(root, finishedWork) {
   // we enter rootWithPendingPassiveEffects commit phase before then.
   if(
     firstEffect !== null
+    && rootWithPendingPassiveEffects !== null
   ) {
     let callback = commitPassiveEffects.bind(null, root, firstEffect);
+    callLifeCycle(callback);
   }
 }
 
-function commitPassiveEffects(root, firstEffect) {
+function commitPassiveEffects(root: FRoot, firstEffect: FNode): void {
+  rootWithPendingPassiveEffects = null;
   let effect = firstEffect;
   do {
     if (effect.effectTag & Passive) {
@@ -244,8 +248,7 @@ function commitPassiveEffects(root, firstEffect) {
         console.log(err)
       }
     }
-    effect = effect.nextEffect;
-
+    effect = effect.next;
   } while(effect !== null)
 }
 
@@ -253,13 +256,11 @@ function commitAllHostEffects() {
 
   while (nextEffect !== null) {
     const effectTag = nextEffect.effectTag;
-    console.log('effectTag', nextEffect)
     // The following switch statement is only concerned about placement,
     // updates, and deletions. To avoid needing to add a case for every
     // possible bitmap value, we remove the secondary effects from the
     // effect tag and switch on that value.
-    let primaryEffectTag = effectTag & (Placement | Update);
-    console.log('primaryEffectTag', primaryEffectTag)
+    let primaryEffectTag = effectTag & (Placement | Update | Deletion);
     switch (primaryEffectTag) {
       case Placement: {
         commitPlacement(nextEffect);
@@ -272,7 +273,6 @@ function commitAllHostEffects() {
         break;
       }
       case PlacementAndUpdate: {
-        console.log('Place and Update');
         // Placement
         commitPlacement(nextEffect);
         // Clear the "placement" from effect tag so that we know that this is inserted, before
@@ -289,9 +289,46 @@ function commitAllHostEffects() {
         commitWork(current, nextEffect);
         break;
       }
+      case Deletion: {
+        commitDeletion(nextEffect);
+        break;
+      }
       default:
         break;
     }
-    nextEffect = nextEffect.nextEffect;
+    nextEffect = nextEffect.next;
+
+  }
+}
+
+
+function commitAllLifeCycles(finishedRoot) {
+  while (nextEffect !== null) {
+    const effectTag = nextEffect.effectTag;
+    if (effectTag & Update) {
+      const current = nextEffect.alternate;
+      commitLifeCycles(finishedRoot, current, nextEffect);
+    }
+    if (effectTag & Passive) {
+      rootWithPendingPassiveEffects = finishedRoot;
+    }
+    nextEffect = nextEffect.next;
+
+  }
+}
+
+function commitLifeCycles(finishedRoot, current, finishedWork) {
+  switch (finishedWork.tag) {
+    case FComponent:
+      commitWithEffectList(UnmountLayout, MountLayout, finishedWork);
+      return;
+    case Root:
+      return
+    case DNode:
+      return;
+    case Text:
+      return;
+    default:
+      console.log('Error')
   }
 }

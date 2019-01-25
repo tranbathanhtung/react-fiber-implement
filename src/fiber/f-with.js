@@ -3,6 +3,7 @@ import * as Status from '../shared/status-work';
 import {
   Update as UpdateEffect
 } from '../shared/effect-tag';
+import { isObject } from '../shared/validate';
 import {
   NoEffect as NoHookEffect,
   UnmountSnapshot,
@@ -12,18 +13,22 @@ import {
   UnmountPassive,
   MountPassive,
 } from '../shared/with-effect';
+
+//test
+import { withState } from '../core/with-state';
+import { lifeCycle } from '../core/life-cycle';
 // The work-in-progress fiber. I've named it differently to distinguish it from
 // the work-in-progress hook.
 let currentlyRenderingFNode = null;
-// Hooks are stored as a linked list on the fiber's memoizedState field. The
+// Hooks are stored as a linked list on the fiber's prevState field. The
 // current hook list is the list that belongs to the current fiber. The
 // work-in-progress hook list is a new list that will be added to the
 // work-in-progress fiber.
 let firstCurrentWith = null;
 let currentWith = null;
 let firstWIPFNode = null;
-let componentUpdateQueue = null;
 let WIPWith = null;
+let componentUpdateQueue = null;
 // Updates scheduled during render will trigger an immediate re-render at the
 // end of the current pass. We can't store these updates on the normal queue,
 // because if the work is aborted, they should be discarded. Because this is
@@ -66,7 +71,6 @@ export function finishedWith(Component, props, children) {
     currentHook = null;
     workInProgressHook = null;
     componentUpdateQueue = null;
-
     children = Component(props);
   }
   renderPhaseUpdates = null;
@@ -197,7 +201,6 @@ function basicStateReducer(state, action) {
 export function withReducer(initialState) {
   // const id = generalId();
   currentlyRenderingFNode = getCurrentRenderingFNode();
-  // console.log('currentlyRenderingFNode', currentlyRenderingFNode)
   // set work to this fiber
   // currentlyRenderingFNode.status = Status.Working;
   WIPWith = createWIPWith();
@@ -270,7 +273,6 @@ export function withReducer(initialState) {
 
  function dispatchAction(fnode, queue, action) {
    fnode.status = 1;
-   console.log('fnode', fnode)
    const alternate = fnode.alternate;
 
    if (alternate !== null) {
@@ -308,26 +310,36 @@ export function withReducer(initialState) {
  export function withLifeCycle(fnodeEffectTag, withEffectTag, lifeCycle) {
    currentlyRenderingFNode = getCurrentRenderingFNode();
    WIPWith = createWIPWith();
-   console.log('currentlyRenderingFNode', currentlyRenderingFNode);
+   const inputs = undefined;
+   var nextInputs = inputs !== undefined && inputs !== null ? inputs : [];
+   let destroyed = null;
    if (currentWith !== null) {
      // for componentdidupdate
+     var prevEffect = currentWith.prevState;
+     destroyed = prevEffect.destroy;
+     if (inputsAreEqual(nextInputs, prevEffect.inputs)) {
+       pushEffect(NoHookEffect, lifeCycle, destroyed);
+       return;
+     }
    }
-
    currentlyRenderingFNode.effectTag |= fnodeEffectTag;
+
    WIPWith.prevState = pushEffect(
      withEffectTag,
-     lifeCycle
+     lifeCycle,
+     destroyed,
    );
  }
 
- function pushEffect(tag, lifeCycle) {
-   const { mounted, destroyed, updated } = lifeCycle;
+ function pushEffect(tag, lifeCycle, destroyed) {
+   const { mounted, updated } = lifeCycle;
    const effect = {
      tag,
      mounted: mounted || null,
      updated: updated || null,
      destroyed: destroyed || null,
-     // circular
+     inputs: [],
+     // circular linked-list
      next: null,
    };
   if (componentUpdateQueue === null) {
@@ -356,17 +368,6 @@ export function withReducer(initialState) {
  function inputsAreEqual(arr1, arr2) {
   // Don't bother comparing lengths in prod because these arrays should be
   // passed inline.
-  if (__DEV__) {
-    warning(
-      arr1.length === arr2.length,
-      'Detected a variable number of hook dependencies. The length of the ' +
-        'dependencies array should be constant between renders.\n\n' +
-        'Previous: %s\n' +
-        'Incoming: %s',
-      arr1.join(', '),
-      arr2.join(', '),
-    );
-  }
   for (let i = 0; i < arr1.length; i++) {
     // Inlined Object.is polyfill.
     // https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Object/is

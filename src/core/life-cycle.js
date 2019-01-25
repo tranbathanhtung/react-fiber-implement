@@ -1,6 +1,7 @@
 import { withLifeCycle } from '../fiber/f-with';
 import {
-  Update as UpdateEffect
+  Update as UpdateEffect,
+  Passive
 } from '../shared/effect-tag';
 import {
   NoEffect as NoHookEffect,
@@ -13,5 +14,5 @@ import {
 } from '../shared/with-effect';
 
 export const lifeCycle = ({mounted, destroyed, updated}) => {
-  return withLifeCycle(UpdateEffect, MountPassive, {mounted, destroyed, updated});
+  return withLifeCycle(UpdateEffect | Passive, UnmountPassive | MountPassive, {mounted, destroyed, updated});
 }

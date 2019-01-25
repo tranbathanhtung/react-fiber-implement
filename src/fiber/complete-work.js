@@ -7,6 +7,7 @@ import {
   DNode,
   Text,
   FComponent,
+  Fragment
 } from '../shared/tag';
 import { Placement, Update } from '../shared/effect-tag';
 
@@ -17,11 +18,12 @@ import {
 
 import {
   createTextInstance,
-  createInstance,
+  createDomNodeInstance,
   appendInitialChild,
   finalizeInitialChildren,
   prepareUpdate,
 } from '../dom/config';
+
 
 function markUpdate(WIP) {
   // Tag the fiber with an update effect. This turns a Placement into
@@ -30,21 +32,6 @@ function markUpdate(WIP) {
 }
 
 export function updateHostContainer(WIP) {
-  let portalOrRoot = WIP.instanceNode;
-  let childrenUnchanged = WIP.firstEffect === null;
-  if (childrenUnchanged) {
-
-  } else {
-    var container = portalOrRoot.containerInfo;
-    // var newChildSet = createContainerChildSet(container);
-    // If children might have changed, we have to add them all to the set.
-    // appendAllChildrenToContainer(newChildSet, WIP);
-    // portalOrRoot.pendingChildren = newChildSet;
-    // Schedule an update on the container to swap out the container.
-    // markUpdate(WIP);
-    // finalizeContainerChildren(container, newChildSet);
-  }
-
 }
 
 export function updateHostComponent(
@@ -78,6 +65,7 @@ export function updateHostComponent(
       newProps,
       rootContainerInstance,
     );
+
     // // TODO: Type this specific to this type of component.
     WIP.updateQueue = WIP;
     // If the update payload indicates that there is a change or if there
@@ -135,11 +123,11 @@ export function completeWork(
   switch (WIP.tag) {
     case Root: {
       popHostContainer(WIP);
-      const fiberRoot = (WIP.instanceNode: FiberRoot);
+      // const fiberRoot = WIP.instanceNode;
       if (current === null || current.child === null) {
         WIP.effectTag &= ~Placement;
       }
-      updateHostContainer(WIP);
+      // updateHostContainer(WIP);
       return null;
     }
     case FComponent: {
@@ -166,7 +154,7 @@ export function completeWork(
           namespace: "http://www.w3.org/1999/xhtml"
         }
         // create instance of element or fiber.. instance will be like document.createElement('div')
-        let instance = createInstance(
+        let instance = createDomNodeInstance(
           type,
           newProps,
           rootContainerInstance,
@@ -195,6 +183,9 @@ export function completeWork(
         const rootContainerInstance = getRootHostContainer();
         WIP.instanceNode = createTextInstance(newText, rootContainerInstance, WIP);
       }
+      return null;
+    }
+    case Fragment: {
       return null;
     }
     default:

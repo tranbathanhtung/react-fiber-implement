@@ -3,67 +3,59 @@ import { h } from './src/core/h';
 import { withState } from './src/core/with-state';
 import { lifeCycle } from './src/core/life-cycle';
 import { render } from './src/dom';
-//
-// let list = []
-//
-// for (let i = 0; i < 10000; i++) {
-//   list = [
-//     ...list,
-//     {
-//       name: 'tung',
-//       age: 10,
-//     }
-//   ]
-// }
-//
-// const Test = ({ title }) => {
-//   const [count, dispatch] = withState(1);
-//
-//
-//   return list.map(l => (
-//     <div>
-//       <p>{l.name}</p>
-//       <button onClick={() => dispatch(count + 1)}>Click</button>
-//       <p>Hello {count}</p>
-//
-//     </div>
-//   ))
-//
-// }
 
-const Title = ({ }) => {
-  console.log('render title')
-  const [name, dispatch] = withState(1);
-  lifeCycle({
-    mounted: () => {},
-    updated: () => console.log('hi'),
-    destroyed: () => {}
-  })
-  return <div>
-    {/* <p>Tung {number}</p> */}
-    <p onClick={() => dispatch(Math.random())}>Name: {name}</p>
-  </div>
+let list = []
+
+for (let i = 0; i < 5; i++) {
+  list = [
+    ...list,
+    {
+      name: 'tung',
+      age: 10,
+      id: i,
+    }
+  ]
 }
 
-const Button = ({ title }) => {
+const Test = ({ title }) => {
   const [count, dispatch] = withState(1);
-  console.log('render button')
+  const [users, setUsers] = withState(list);
+
   lifeCycle({
-    mounted: () => {},
-    destroyed: () => {}
+    mounted() {
+      console.log('mounted Test')
+      return () => console.log('unmounted Test')
+    }
   })
+
+  function add() {
+    const newUsers = [...users, { name: 'teng', age: 12, id: users.length }];
+    setUsers(newUsers);
+  }
+  function update() {
+    const i = Math.floor((Math.random() * (users.length - 1)) + 0);
+    const newUsers = users.map(u => u.id === i ? {...u, name: 'aaaa', age: 15} : u);
+    setUsers(newUsers);
+  }
   return (
     <div>
-      <button onClick={() => {
-          dispatch(count + 1)
-        }}>Click</button>
-      <p>Hello {count}</p>
-      <Title/>
+      <button onClick={add}>Add</button>
+      <button onClick={update}>Update</button>
+      <button>Delete</button>
+
+      {
+        users.map(u => (
+          <div>
+            <p>{u.name}</p>
+            <p>{u.age}</p>
+            <button onClick={() => dispatch(count + 1)}>Click</button>
+            <p>Hello {count}</p>
+          </div>
+        ))
+      }
     </div>
   )
 
 }
 
-// g(<Button title='title'/>)
-render(<Button title='Hello'/>, document.getElementById('root'));
-// render(<Test/>, document.getElementById('root'));
+render(<Test title='Hello'/>, document.getElementById('root'));

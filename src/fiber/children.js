@@ -1,7 +1,9 @@
 import type { Fiber } from './Fiber';
+import { REACT_ELEMENT_TYPE } from '../core/h';
 import {
   createWIP,
   createFNodeFromElement,
+  createFNodeFromFragment,
   createFNode,
 } from './f-node';
 import {
@@ -9,10 +11,10 @@ import {
   DNode,
   FComponent,
   Text,
+  Fragment,
 } from '../shared/Tag';
+import { isArray } from '../shared/validate';
 import { NoEffect, Placement, Deletion } from '../shared/effect-tag';
-
-const isArray = Array.isArray;
 
 function ChildReconciler(shouldTrackSideEffects) {
   function deleteChild(returnFNode, childToDelete) {
@@ -20,14 +22,14 @@ function ChildReconciler(shouldTrackSideEffects) {
       return;
     }
 
-    const last = returnFNode.lastEffect;
+    const last = returnFNode.linkedList.last;
     if (last !== null) {
-      last.nextEffect = childToDelete;
-      returnFNode.lastEffect = childToDelete;
+      last.next = childToDelete;
+      returnFNode.linkedList.last = childToDelete;
     } else {
-      returnFNode.firstEffect = returnFNode.lastEffect = childToDelete;
+      returnFNode.linkedList.first = returnFNode.linkedList.last = childToDelete;
     }
-    childToDelete.nextEffect = null;
+    childToDelete.next = null;
     childToDelete.effectTag = Deletion;
   }
   function deleteRemainingChildren(returnFNode, currentFirstChild) {
@@ -68,8 +70,6 @@ function ChildReconciler(shouldTrackSideEffects) {
   }
 
   function placeSingleChild(newFNode) {
-    console.log('placeChild',newFNode)
-
     // This is simpler for the single child case. We only need to do a
     // placement for inserting new children.
     if (shouldTrackSideEffects && newFNode.alternate === null) {
@@ -114,14 +114,14 @@ function ChildReconciler(shouldTrackSideEffects) {
         }
       }
 
-      // if (isArray(newChild)) {
-      //   const created = createFNodeFromFragment(
-      //     newChild,
-      //     newChild.key,
-      //   );
-      //   created.return = returnFNode;
-      //   return created;
-      // }
+      if (isArray(newChild)) {
+        const created = createFNodeFromFragment(
+          newChild,
+          null,
+        );
+        created.return = returnFNode;
+        return created;
+      }
       return null;
   }
 
@@ -159,6 +159,20 @@ function ChildReconciler(shouldTrackSideEffects) {
     }
   }
 
+  function updateFragment(returnFNode, current, fragment) {
+    if (current === null || current.tag !== Fragment) {
+      // insert
+      const created = createFNodeFromFragment(fragment, null);
+      created.return = returnFNode;
+      return created;
+    } else {
+      // Update
+      const existing = useFNode(current, fragment);
+      existing.return = returnFNode;
+      return existing;
+    }
+  }
+
   function updateSlot(returnFNode, oldFiber, newChild) {
     const key = oldFiber !== null ? oldFiber.key : null;
     if (typeof newChild === 'string' || typeof newChild === 'number') {
@@ -174,19 +188,23 @@ function ChildReconciler(shouldTrackSideEffects) {
         '' + newChild,
       );
     }
-
     if (typeof newChild === 'object' && newChild !== null) {
-      if (newChild.key === key) {
-        return updateElement(returnFNode, oldFiber, newChild);
-      } else {
-        return null;
+      switch (newChild.$$typeof) {
+        case REACT_ELEMENT_TYPE: {
+          if (newChild.key === key) {
+            return updateElement(returnFNode, oldFiber, newChild);
+          } else {
+            return null;
+          }
+        }
+
       }
-    }
-    if (isArray(newChild)) {
-      if (key !== null) {
-          return null;
+      if (isArray(newChild)) {
+        if (key !== null) {
+            return null;
+        }
+        return updateFragment(returnFNode, oldFiber, newChild);
       }
-      return null;
     }
     return null;
   }
@@ -210,7 +228,6 @@ function ChildReconciler(shouldTrackSideEffects) {
   }
 
   function reconcileChildrenArray(returnFNode, currentFirstChild, newChildren) {
-
       let resultingFirstChild = null;
       let previousnewFNode = null;
 
@@ -386,10 +403,4 @@ export function reconcileChildren(current, WIP, nextChild) {
   } else {
     WIP.child = reconcileChilds(WIP, current.child, nextChild);
   }
-  // 
-  // if (WIP.status !== 0) {
-  //   console.log('WIP !== 0', WIP.child)
-  // }
-
-
 }
