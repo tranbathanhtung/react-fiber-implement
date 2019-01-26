@@ -33,6 +33,7 @@ react-fiber is my self-study project help me understand how react work. In fact,
 
 ### Fiber tree
 ![](https://cdn-images-1.medium.com/max/1600/1*cLqBZRht7RgR9enHet_0fQ.png)
+
 [Inside Fiber: in-depth overview of the new reconciliation algorithm in React](https://medium.com/react-in-depth/inside-fiber-in-depth-overview-of-the-new-reconciliation-algorithm-in-react-e1c04700ef6e)
 ### Keyword
   ```
