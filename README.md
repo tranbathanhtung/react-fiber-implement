@@ -1,5 +1,5 @@
 ## React fiber
-react-fiber is my self study project help me understand how react work. In fact, all codebase re-implement each step , so it looks similar to the source code of react.Though, I think it's still smaller and easier to understand than when you actually read the react source code. I hope it helpful for people who want to start learn how react fiber work.
+react-fiber is my self-study project help me understand how react work. In fact, all codebase re-implement each step , so it looks similar to the source code of react. Though, I think it's still smaller and easier to understand than when you actually read the react source code. I hope it helpful for people who want to start learn how react fiber work.
 
 ## Something you should read and learn before start read source code
 
@@ -17,7 +17,6 @@ react-fiber is my self study project help me understand how react work. In fact,
 - [React Components, Elements, and Instances](https://reactjs.org/blog/2015/12/18/react-components-elements-and-instances.html)
 - [Design Principles](https://reactjs.org/docs/design-principles.html)
 - [React Fiber resources](https://github.com/koba04/react-fiber-resources)
-- [Inside Fiber: in-depth overview of the new reconciliation algorithm in React](https://medium.com/react-in-depth/inside-fiber-in-depth-overview-of-the-new-reconciliation-algorithm-in-react-e1c04700ef6e)
 - [The how and why on React’s usage of linked list in Fiber to walk the component’s tree](https://medium.com/react-in-depth/the-how-and-why-on-reacts-usage-of-linked-list-in-fiber-67f1014d0eb7)
 - [In-depth explanation of state and props update in React
 ](https://medium.com/react-in-depth/in-depth-explanation-of-state-and-props-update-in-react-51ab94563311)
@@ -33,7 +32,8 @@ react-fiber is my self study project help me understand how react work. In fact,
 ## Overview
 
 ### Fiber tree
-
+![](https://cdn-images-1.medium.com/max/1600/1*cLqBZRht7RgR9enHet_0fQ.png)
+[Inside Fiber: in-depth overview of the new reconciliation algorithm in React](https://medium.com/react-in-depth/inside-fiber-in-depth-overview-of-the-new-reconciliation-algorithm-in-react-e1c04700ef6e)
 ### Keyword
   ```
   work (unitOfWork): A component, node element => fiber

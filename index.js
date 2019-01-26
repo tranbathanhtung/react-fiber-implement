@@ -37,19 +37,23 @@ const Test = ({ title }) => {
     const newUsers = users.map(u => u.id === i ? {...u, name: 'aaaa', age: 15} : u);
     setUsers(newUsers);
   }
+  function remove() {
+    const i = Math.floor((Math.random() * (users.length - 1)) + 0);
+    const newUsers = users.filter(u => u.id !== i);
+    setUsers(newUsers);
+  }
   return (
     <div>
       <button onClick={add}>Add</button>
       <button onClick={update}>Update</button>
-      <button>Delete</button>
-
+      <button onClick={remove}>Delete</button>
+      <p>Hello {count}</p>
       {
         users.map(u => (
           <div>
             <p>{u.name}</p>
             <p>{u.age}</p>
             <button onClick={() => dispatch(count + 1)}>Click</button>
-            <p>Hello {count}</p>
           </div>
         ))
       }
