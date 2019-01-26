@@ -36,17 +36,6 @@ let componentUpdateQueue = null;
 // either the hook or queue object types. So we store them in a lazily create
 // map of queue -> render-phase updates, which are discarded once the component
 // completes without re-rendering.
-
-// Whether the work-in-progress hook is a re-rendered hook
-let isReRender = false;
-// Whether an update was scheduled during the currently executing render pass.
-let didScheduleRenderPhaseUpdate = false;
-// Lazily created map of render-phase updates
-let renderPhaseUpdates = null;
-// Counter to prevent infinite loops.
-let numberOfReRenders = 0;
-const RE_RENDER_LIMIT = 25;
-
 function getCurrentRenderingFNode() {
   return currentlyRenderingFNode;
 }
@@ -59,22 +48,6 @@ export function prepareWithState(current, WIP) {
 export function finishedWith(Component, props, children) {
   // This must be called after every function component to prevent hooks from
   // being used in classes.
-  while (didScheduleRenderPhaseUpdate) {
-    // Updates were scheduled during the render phase. They are stored in
-    // the `renderPhaseUpdates` map. Call the component again, reusing the
-    // work-in-progress hooks and applying the additional updates on top. Keep
-    // restarting until no more updates are scheduled.
-    didScheduleRenderPhaseUpdate = false;
-    numberOfReRenders += 1;
-
-    // Start over from the beginning of the list
-    currentHook = null;
-    workInProgressHook = null;
-    componentUpdateQueue = null;
-    children = Component(props);
-  }
-  renderPhaseUpdates = null;
-  numberOfReRenders = 0;
   const renderedWork = currentlyRenderingFNode;
   renderedWork.prevState = firstWIPFNode;
   renderedWork.lifeCycle = componentUpdateQueue;
@@ -95,20 +68,12 @@ export function resetWiths() {
   // called inside mountIndeterminateComponent if we determine the component
   // is a module-style component.
   currentlyRenderingFNode = null;
-
   firstCurrentWith = null;
   currentWith = null;
   firstWIPFNode = null;
   WIPWith = null;
-
   componentUpdateQueue = null;
 
-  // Always set during createWorkInProgress
-  // isReRender = false;
-
-  didScheduleRenderPhaseUpdate = false;
-  renderPhaseUpdates = null;
-  numberOfReRenders = 0;
 }
 
 function createWith() {
@@ -140,7 +105,6 @@ function createWIPWith() {
   if (WIPWith === null) {
     // this is the first hook in the list
     if (firstWIPFNode === null) {
-      isReRender = false;
       currentWith = firstCurrentWith;
       if (currentWith === null) {
         // This is a newly mounted hook
@@ -152,14 +116,12 @@ function createWIPWith() {
       firstWIPFNode = WIPWith;
     } else {
       // There's already a work-in-progress. Reuse it.
-      isReRender = true;
       currentWith = firstCurrentWith;
       WIPWith = firstWIPFNode;
     }
   } else {
 
     if (WIPWith.next === null) {
-      isReRender = false;
       let With;
       if (currentWith === null) {
         // This is a newly mounted hook
@@ -180,7 +142,6 @@ function createWIPWith() {
     }
     else {
       // There's already a work-in-progress. Reuse it.
-      isReRender = true;
       WIPWith = WIPWith.next;
       currentWith = currentWith !== null ? currentWith.next : null;
     }
@@ -208,10 +169,7 @@ export function withReducer(initialState) {
   let queue = WIPWith.queue;
   if (queue !== null) {
     // Already have a queue, so this is an update.
-    if (isReRender) {
-      // This is a re-render. Apply the new render phase updates to the previous
-      // work-in-progress hook.
-    }
+
     // The last update in the entire queue
     const last = queue.last;
     // The last update that is part of the base state.
@@ -279,31 +237,27 @@ export function withReducer(initialState) {
      alternate.status = 1;
    }
 
-   if (1 === 2) {
+   const update = {
+     action,
+     next: null,
+   }
+   // flushPassiveEffects();
+   // append the update to the end of the list
+   const last = queue.last;
+   if (last === null) {
+     // This is the first update. Create a circular list.
+     update.next = update;
 
    } else {
-     const update = {
-       action,
-       next: null,
-     }
-     // flushPassiveEffects();
-     // append the update to the end of the list
-     const last = queue.last;
-     if (last === null) {
-       // This is the first update. Create a circular list.
-       update.next = update;
-
-     } else {
-       const first = last.next;
-       if (first !== null) {
-        // Still circular.
-        update.next = first;
-        }
-        last.next = update;
-     }
-     queue.last = update;
-     scheduleWork(fnode);
+     const first = last.next;
+     if (first !== null) {
+      // Still circular.
+      update.next = first;
+      }
+      last.next = update;
    }
+   queue.last = update;
+   scheduleWork(fnode);
  }
 
 
