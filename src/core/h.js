@@ -70,7 +70,7 @@ export function h(type, options, children) {
   if (type && type.defaultProps) {
     const defaultProps = type.defaultProps;
     for (propName in defaultProps) {
-      if (props[propName === undefined]) {
+      if (props[propName] === undefined) {
         props[propName] = defaultProps[propName];
       }
     }
