@@ -265,11 +265,11 @@ export function withReducer(initialState) {
    currentlyRenderingFNode = getCurrentRenderingFNode();
    WIPWith = createWIPWith();
    const inputs = undefined;
-   var nextInputs = inputs !== undefined && inputs !== null ? inputs : [];
+   const nextInputs = inputs !== undefined && inputs !== null ? inputs : [];
    let destroyed = null;
    if (currentWith !== null) {
      // for componentdidupdate
-     var prevEffect = currentWith.prevState;
+     const prevEffect = currentWith.prevState;
      destroyed = prevEffect.destroy;
      if (inputsAreEqual(nextInputs, prevEffect.inputs)) {
        pushEffect(NoHookEffect, lifeCycle, destroyed);
